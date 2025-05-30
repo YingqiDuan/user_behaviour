@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Behavior Event Tester</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .form-section {
+            flex: 1;
+            min-width: 300px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        textarea {
+            width: 100%;
+            min-height: 200px;
+            margin-bottom: 10px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f8f8f8;
+            border-radius: 4px;
+        }
+        h2, h3 {
+            color: #333;
+        }
+        .api-tabs {
+            display: flex;
+            margin-bottom: 20px;
+        }
+        .api-tab {
+            padding: 10px 20px;
+            background-color: #f1f1f1;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+        }
+        .api-tab.active {
+            border-bottom: 2px solid #4CAF50;
+            background-color: #e9e9e9;
+        }
+    </style>
+</head>
+<body>
+    <h1>User Behavior Event Tester</h1>
+    
+    <div class="api-tabs">
+        <div class="api-tab active" onclick="switchAPI('standard')">Standard API</div>
+        <div class="api-tab" onclick="switchAPI('concise')">Concise API</div>
+    </div>
+    
+    <div id="standard-api">
+        <div class="container">
+            <div class="form-section">
+                <h2>Single Event</h2>
+                <textarea id="singleEvent">
+{
+  "userId": "user123",
+  "eventType": "PAGE_VIEW",
+  "source": "example-client",
+  "eventTime": null,
+  "eventData": {
+    "page": "/home",
+    "referrer": "/login"
+  },
+  "sessionId": "sess-12345",
+  "deviceInfo": "Example Client"
+}
+                </textarea>
+                <button onclick="sendSingleEvent('/api/events')">Send Event</button>
+                <div id="singleResult" class="result"></div>
+            </div>
+            
+            <div class="form-section">
+                <h2>Batch Events</h2>
+                <textarea id="batchEvents">
+[
+  {
+    "userId": "user123",
+    "eventType": "PAGE_VIEW",
+    "source": "example-client",
+    "eventData": {
+      "page": "/products"
+    }
+  },
+  {
+    "userId": "user456",
+    "eventType": "BUTTON_CLICK",
+    "source": "example-client",
+    "eventData": {
+      "buttonId": "add-to-cart",
+      "productId": "prod123"
+    }
+  }
+]
+                </textarea>
+                <button onclick="sendBatchEvents('/api/events/batch')">Send Batch Events</button>
+                <div id="batchResult" class="result"></div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="concise-api" style="display: none;">
+        <div class="container">
+            <div class="form-section">
+                <h2>Single Event</h2>
+                <textarea id="conciseSingleEvent">
+{
+  "userId": "user123",
+  "eventType": "PAGE_VIEW",
+  "source": "example-client",
+  "eventTime": null,
+  "eventData": {
+    "page": "/home",
+    "referrer": "/login"
+  },
+  "sessionId": "sess-12345",
+  "deviceInfo": "Example Client"
+}
+                </textarea>
+                <button onclick="sendSingleEvent('/collect')">Send Event</button>
+                <div id="conciseSingleResult" class="result"></div>
+            </div>
+            
+            <div class="form-section">
+                <h2>Batch Events</h2>
+                <textarea id="conciseBatchEvents">
+[
+  {
+    "userId": "user123",
+    "eventType": "PAGE_VIEW",
+    "source": "example-client",
+    "eventData": {
+      "page": "/products"
+    }
+  },
+  {
+    "userId": "user456",
+    "eventType": "BUTTON_CLICK",
+    "source": "example-client",
+    "eventData": {
+      "buttonId": "add-to-cart",
+      "productId": "prod123"
+    }
+  }
+]
+                </textarea>
+                <button onclick="sendBatchEvents('/collect/batch', 'conciseBatchResult')">Send Batch Events</button>
+                <div id="conciseBatchResult" class="result"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function switchAPI(api) {
+            document.querySelectorAll('.api-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            document.querySelector(`.api-tab[onclick="switchAPI('${api}')"]`).classList.add('active');
+            
+            if (api === 'standard') {
+                document.getElementById('standard-api').style.display = 'block';
+                document.getElementById('concise-api').style.display = 'none';
+            } else {
+                document.getElementById('standard-api').style.display = 'none';
+                document.getElementById('concise-api').style.display = 'block';
+            }
+        }
+        
+        function sendSingleEvent(endpoint, resultId = 'singleResult') {
+            const eventData = JSON.parse(document.getElementById(endpoint === '/collect' ? 'conciseSingleEvent' : 'singleEvent').value);
+            
+            fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(eventData)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.text().then(text => {
+                        throw new Error(`Error ${response.status}: ${text}`);
+                    });
+                }
+                return response.text();
+            })
+            .then(data => {
+                document.getElementById(resultId).innerHTML = 
+                    `<p><strong>Status:</strong> Success</p>
+                     <p><strong>Response:</strong> ${data}</p>`;
+            })
+            .catch(error => {
+                document.getElementById(resultId).innerHTML = 
+                    `<p style="color: red;"><strong>Error:</strong> ${error.message}</p>`;
+            });
+        }
+        
+        function sendBatchEvents(endpoint, resultId = 'batchResult') {
+            const eventsData = JSON.parse(document.getElementById(endpoint === '/collect/batch' ? 'conciseBatchEvents' : 'batchEvents').value);
+            
+            fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(eventsData)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.text().then(text => {
+                        throw new Error(`Error ${response.status}: ${text}`);
+                    });
+                }
+                return response.text();
+            })
+            .then(data => {
+                document.getElementById(resultId).innerHTML = 
+                    `<p><strong>Status:</strong> Success</p>
+                     <p><strong>Response:</strong> ${data}</p>`;
+            })
+            .catch(error => {
+                document.getElementById(resultId).innerHTML = 
+                    `<p style="color: red;"><strong>Error:</strong> ${error.message}</p>`;
+            });
+        }
+    </script>
+</body>
+</html> 

@@ -1,0 +1,15 @@
+{
+    "userId": "user123",
+    "sessionId": "session456",
+    "eventType": "PAGE_VIEW",
+    "eventTime": "2025-05-19T19:00:00Z",
+    "pageUrl": "http://example.com/home",
+    "referrer": "http://google.com",
+    "userAgent": "Mozilla/5.0",
+    "deviceType": "desktop",
+    "source": "web",
+    "properties": {
+        "viewTime": 30,
+        "scrollDepth": 75
+    }
+}

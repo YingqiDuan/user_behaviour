@@ -138,6 +138,13 @@
 				<start-class>com.microservice.user_behaviour.consumer.UserBehaviorConsumerApplication</start-class>
 			</properties>
 		</profile>
+		<profile>
+			<id>query</id>
+			<properties>
+				<spring.profiles.active>query</spring.profiles.active>
+				<start-class>com.microservice.user_behaviour.query.UserBehaviorQueryApplication</start-class>
+			</properties>
+		</profile>
 	</profiles>
 
 </project>

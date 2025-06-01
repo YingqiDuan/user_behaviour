@@ -1,5 +1,6 @@
 package com.microservice.user_behaviour.consumer.repository;
 
+import org.springframework.context.annotation.Profile;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -9,6 +10,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
+@Profile("consumer")
 public interface UserBehaviorRepository extends JpaRepository<UserBehaviorEntity, Long> {
     
     List<UserBehaviorEntity> findByUserIdAndEventTypeAndEventTimeBetween(

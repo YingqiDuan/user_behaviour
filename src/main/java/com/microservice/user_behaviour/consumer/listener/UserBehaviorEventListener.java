@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.springframework.context.annotation.Profile;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.annotation.TopicPartition;
 import org.springframework.kafka.listener.BatchAcknowledgingMessageListener;
@@ -20,6 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 @Component
 @Slf4j
 @RequiredArgsConstructor
+@Profile("consumer")
 public class UserBehaviorEventListener implements BatchAcknowledgingMessageListener<String, UserBehaviorEvent> {
 
     private final UserBehaviorProcessingService processingService;
@@ -29,13 +31,13 @@ public class UserBehaviorEventListener implements BatchAcknowledgingMessageListe
      */
     @KafkaListener(
         id = "userBehaviorListener",
-        topicPartitions = {
-            @TopicPartition(topic = "${user.behavior.topic}", partitions = {"0", "1", "2"}),
-            @TopicPartition(topic = "${user.behavior.topic.pageview}", partitions = {"0", "1", "2"}),
-            @TopicPartition(topic = "${user.behavior.topic.click}", partitions = {"0", "1", "2"}),
-            @TopicPartition(topic = "${user.behavior.topic.search}", partitions = {"0", "1", "2"}),
-            @TopicPartition(topic = "${user.behavior.topic.purchase}", partitions = {"0", "1", "2"}),
-            @TopicPartition(topic = "${user.behavior.topic.default}", partitions = {"0", "1", "2"})
+        topics = {
+            "${user.behavior.topic}",
+            "${user.behavior.topic.pageview}",
+            "${user.behavior.topic.click}",
+            "${user.behavior.topic.search}",
+            "${user.behavior.topic.purchase}",
+            "${user.behavior.topic.default}"
         },
         containerFactory = "kafkaListenerContainerFactory"
     )

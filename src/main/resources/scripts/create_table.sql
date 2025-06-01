@@ -16,8 +16,8 @@ CREATE TABLE user_behavior_events (
     ip_address VARCHAR(50),
     processed_time TIMESTAMP NOT NULL,
     topic VARCHAR(100),
-    partition INT,
-    offset BIGINT,
+    `partition` INT,
+    `offset` BIGINT,
     
     -- Create indexes for frequently queried fields
     INDEX idx_user_id (user_id),

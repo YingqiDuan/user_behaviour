@@ -8,6 +8,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Profile;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 @Slf4j
 @RequiredArgsConstructor
+@Profile("consumer")
 public class UserBehaviorProcessingService {
 
     private final UserBehaviorRepository repository;
@@ -138,5 +140,22 @@ public class UserBehaviorProcessingService {
             log.info("Successfully saved {} events. Total received: {}, processed: {}", 
                     batch.size(), receivedCount.get(), processedCount.get());
         }
+    }
+    
+    // Debug getter methods
+    public int getQueueSize() {
+        return processingQueue.size();
+    }
+    
+    public int getReceivedCount() {
+        return receivedCount.get();
+    }
+    
+    public int getProcessedCount() {
+        return processedCount.get();
+    }
+    
+    public int getBatchSize() {
+        return batchSize;
     }
 } 

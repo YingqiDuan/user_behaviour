@@ -1,0 +1,100 @@
+spring:
+  profiles:
+    active: integration-test
+  
+  # 数据库配置 - 使用TestContainers MySQL
+  datasource:
+    url: jdbc:mysql://localhost:3306/user_behavior_test
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: test
+    password: test
+  
+  # JPA配置
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQL8Dialect
+        format_sql: true
+  
+  # Redis配置 - 使用TestContainers Redis
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 2000ms
+      jedis:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+  
+  # Kafka配置 - 使用TestContainers Kafka
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 3
+      properties:
+        max.in.flight.requests.per.connection: 1
+    consumer:
+      group-id: user-behavior-integration-test-group
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "com.microservice.user_behaviour.model"
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+    listener:
+      ack-mode: manual_immediate
+
+# 应用配置
+user:
+  behavior:
+    topic:
+      main: user-behavior-events
+      pageview: user-behavior-pageview
+      click: user-behavior-click
+      search: user-behavior-search
+      purchase: user-behavior-purchase
+      default: user-behavior-default
+
+# 批处理配置
+app:
+  batch:
+    size: 10
+
+# 查询服务配置
+query:
+  cache:
+    ttl: 600  # 10分钟缓存
+    enable: true
+
+# 日志配置
+logging:
+  level:
+    com.microservice.user_behaviour: INFO
+    org.springframework.kafka: WARN
+    org.springframework.data.redis: WARN
+    org.hibernate.SQL: INFO
+    org.testcontainers: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+# 管理端点配置
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: true 

@@ -5,6 +5,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.HashMap;
 
 import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.Page;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.microservice.user_behaviour.model.UserBehaviorEvent;
 import com.microservice.user_behaviour.query.service.UserBehaviorQueryService;
+import com.microservice.user_behaviour.query.client.ProcessingServiceClient;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +33,7 @@ import lombok.extern.slf4j.Slf4j;
 public class UserStatsController {
 
     private final UserBehaviorQueryService queryService;
+    private final ProcessingServiceClient processingServiceClient;
     
     /**
      * 查询某用户最近N条行为事件
@@ -215,5 +218,67 @@ public class UserStatsController {
         hourStats.put("queryTime", now);
         
         return ResponseEntity.ok(hourStats);
+    }
+
+    /**
+     * 获取处理服务的实时统计信息（通过Feign调用）
+     * GET /api/query/processing/stats
+     */
+    @GetMapping("/processing/stats")
+    public ResponseEntity<Map<String, Object>> getProcessingServiceStats() {
+        
+        log.info("Calling processing service for stats via Feign");
+        
+        try {
+            Map<String, Object> stats = processingServiceClient.getProcessingStats();
+            stats.put("calledVia", "feign-client");
+            stats.put("queryTimestamp", LocalDateTime.now());
+            
+            return ResponseEntity.ok(stats);
+        } catch (Exception e) {
+            log.error("Failed to call processing service", e);
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Failed to communicate with processing service");
+            errorResponse.put("message", e.getMessage());
+            errorResponse.put("timestamp", LocalDateTime.now());
+            return ResponseEntity.status(503).body(errorResponse);
+        }
+    }
+
+    /**
+     * 获取完整的系统状态（结合本地和远程服务）
+     * GET /api/query/system/status
+     */
+    @GetMapping("/system/status")
+    public ResponseEntity<Map<String, Object>> getSystemStatus() {
+        
+        log.info("Getting comprehensive system status");
+        
+        Map<String, Object> systemStatus = new HashMap<>();
+        
+        // 本地查询服务状态
+        Map<String, Object> queryServiceStats = queryService.getQueryServiceStats();
+        systemStatus.put("queryService", queryServiceStats);
+        
+        // 远程处理服务状态（通过Feign）
+        try {
+            Map<String, Object> processingStats = processingServiceClient.getProcessingStats();
+            systemStatus.put("processingService", processingStats);
+            
+            Map<String, Object> cacheHealth = processingServiceClient.getCacheHealth();
+            systemStatus.put("cacheHealth", cacheHealth);
+            
+        } catch (Exception e) {
+            log.warn("Failed to get processing service status", e);
+            Map<String, Object> errorInfo = new HashMap<>();
+            errorInfo.put("status", "ERROR");
+            errorInfo.put("message", "Processing service unavailable");
+            systemStatus.put("processingService", errorInfo);
+        }
+        
+        systemStatus.put("timestamp", LocalDateTime.now());
+        systemStatus.put("systemStatus", "OPERATIONAL");
+        
+        return ResponseEntity.ok(systemStatus);
     }
 } 

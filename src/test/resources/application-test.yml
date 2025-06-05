@@ -1,0 +1,94 @@
+spring:
+  profiles:
+    active: test
+  
+  # 数据库配置 - 使用H2内存数据库
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: 
+  
+  # JPA配置
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        format_sql: true
+  
+  # Redis配置 - 使用嵌入式Redis
+  data:
+    redis:
+      host: localhost
+      port: 6370  # 避免与真实Redis冲突
+      timeout: 2000ms
+      jedis:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+  
+  # Kafka配置 - 使用嵌入式Kafka
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 3
+    consumer:
+      group-id: user-behavior-test-group
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "com.microservice.user_behaviour.model"
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+    listener:
+      ack-mode: manual_immediate
+
+# 应用配置
+user:
+  behavior:
+    topic:
+      main: test-user-behavior-events
+      pageview: test-user-behavior-pageview
+      click: test-user-behavior-click
+      search: test-user-behavior-search
+      purchase: test-user-behavior-purchase
+      default: test-user-behavior-default
+
+# 批处理配置
+app:
+  batch:
+    size: 5
+
+# 查询服务配置
+query:
+  cache:
+    ttl: 300  # 5分钟缓存
+    enable: true
+
+# 日志配置
+logging:
+  level:
+    com.microservice.user_behaviour: DEBUG
+    org.springframework.kafka: WARN
+    org.springframework.data.redis: WARN
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+# 管理端点配置
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always 

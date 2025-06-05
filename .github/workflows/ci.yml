@@ -1,0 +1,332 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        
+    - name: Cache Maven dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.m2
+        key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+        restore-keys: ${{ runner.os }}-m2
+        
+    - name: Run unit tests
+      run: mvn clean test -Dspring.profiles.active=test
+      
+    - name: Generate test report
+      uses: dorny/test-reporter@v1
+      if: success() || failure()
+      with:
+        name: Unit Test Results
+        path: target/surefire-reports/*.xml
+        reporter: java-junit
+        
+    - name: Upload unit test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: unit-test-results
+        path: target/surefire-reports/
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: user_behavior_test
+          MYSQL_USER: test
+          MYSQL_PASSWORD: test
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+          
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: --health-cmd="redis-cli ping" --health-interval=10s --health-timeout=5s --health-retries=3
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        
+    - name: Cache Maven dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.m2
+        key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+        restore-keys: ${{ runner.os }}-m2
+        
+    - name: Wait for MySQL
+      run: |
+        while ! mysqladmin ping -h"127.0.0.1" -P3306 -uroot -proot --silent; do
+          sleep 1
+        done
+        
+    - name: Wait for Redis
+      run: |
+        while ! redis-cli -h 127.0.0.1 -p 6379 ping; do
+          sleep 1
+        done
+        
+    - name: Run integration tests
+      run: mvn clean verify -Dspring.profiles.active=integration-test
+      env:
+        SPRING_DATASOURCE_URL: jdbc:mysql://localhost:3306/user_behavior_test
+        SPRING_DATASOURCE_USERNAME: test
+        SPRING_DATASOURCE_PASSWORD: test
+        SPRING_DATA_REDIS_HOST: localhost
+        SPRING_DATA_REDIS_PORT: 6379
+        
+    - name: Generate integration test report
+      uses: dorny/test-reporter@v1
+      if: success() || failure()
+      with:
+        name: Integration Test Results
+        path: target/failsafe-reports/*.xml
+        reporter: java-junit
+        
+    - name: Upload integration test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: integration-test-results
+        path: target/failsafe-reports/
+
+  code-coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        
+    - name: Cache Maven dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.m2
+        key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+        restore-keys: ${{ runner.os }}-m2
+        
+    - name: Run tests with coverage
+      run: mvn clean verify -Dspring.profiles.active=test
+      
+    - name: Generate coverage report
+      run: mvn jacoco:report
+      
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: target/site/jacoco/jacoco.xml
+        flags: unittests
+        name: codecov-umbrella
+        
+    - name: Upload coverage reports
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-reports
+        path: target/site/jacoco/
+        
+    - name: Check coverage threshold
+      run: |
+        COVERAGE=$(grep -o 'Total.*[0-9]\+%' target/site/jacoco/index.html | grep -o '[0-9]\+%' | head -1 | sed 's/%//')
+        echo "Code coverage: ${COVERAGE}%"
+        if [ "$COVERAGE" -lt 70 ]; then
+          echo "Code coverage is below 70% threshold"
+          exit 1
+        fi
+
+  performance-tests:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    needs: integration-tests
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        
+    - name: Cache Maven dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.m2
+        key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+        restore-keys: ${{ runner.os }}-m2
+        
+    - name: Run performance tests
+      run: mvn clean test -Dtest="*PerformanceTest" -Dspring.profiles.active=performance-test
+      
+    - name: Upload performance test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: performance-test-results
+        path: target/surefire-reports/
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        
+    - name: Cache Maven dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.m2
+        key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+        restore-keys: ${{ runner.os }}-m2
+        
+    - name: Run OWASP dependency check
+      run: mvn org.owasp:dependency-check-maven:check
+      
+    - name: Upload security scan results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: security-scan-results
+        path: target/dependency-check-report.html
+
+  build-and-package:
+    name: Build and Package
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests, code-coverage]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        
+    - name: Cache Maven dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.m2
+        key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+        restore-keys: ${{ runner.os }}-m2
+        
+    - name: Build application
+      run: mvn clean compile
+      
+    - name: Package application
+      run: mvn package -DskipTests
+      
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: jar-artifacts
+        path: target/*.jar
+
+  docker-build:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs: build-and-package
+    if: github.event_name == 'push'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Download build artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: jar-artifacts
+        path: target/
+        
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Login to Docker Hub
+      if: github.ref == 'refs/heads/main'
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+        
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: ${{ github.ref == 'refs/heads/main' }}
+        tags: |
+          ${{ secrets.DOCKER_USERNAME }}/user-behavior-service:latest
+          ${{ secrets.DOCKER_USERNAME }}/user-behavior-service:${{ github.sha }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  notify:
+    name: Notify Results
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests, code-coverage, security-scan, build-and-package]
+    if: always()
+    
+    steps:
+    - name: Notify success
+      if: ${{ needs.unit-tests.result == 'success' && needs.integration-tests.result == 'success' && needs.code-coverage.result == 'success' }}
+      run: |
+        echo "✅ All tests passed successfully!"
+        echo "✅ Code coverage meets threshold"
+        echo "✅ Build completed successfully"
+        
+    - name: Notify failure
+      if: ${{ needs.unit-tests.result == 'failure' || needs.integration-tests.result == 'failure' || needs.code-coverage.result == 'failure' }}
+      run: |
+        echo "❌ Pipeline failed!"
+        echo "Unit Tests: ${{ needs.unit-tests.result }}"
+        echo "Integration Tests: ${{ needs.integration-tests.result }}"
+        echo "Code Coverage: ${{ needs.code-coverage.result }}"
+        exit 1 

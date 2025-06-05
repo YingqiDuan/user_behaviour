@@ -1,0 +1,125 @@
+spring:
+  profiles:
+    active: performance-test
+  
+  # 数据库配置 - 使用H2内存数据库以提高性能
+  datasource:
+    url: jdbc:h2:mem:perfdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: 
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+  
+  # JPA配置
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        jdbc:
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
+  
+  # Redis配置
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 1000ms
+      jedis:
+        pool:
+          max-active: 20
+          max-idle: 10
+          min-idle: 5
+  
+  # Kafka配置 - 优化性能
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: 1  # 降低一致性要求以提高性能
+      retries: 1
+      batch-size: 16384
+      linger-ms: 5
+      buffer-memory: 33554432
+      properties:
+        max.in.flight.requests.per.connection: 5
+    consumer:
+      group-id: user-behavior-perf-test-group
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "com.microservice.user_behaviour.model"
+      auto-offset-reset: earliest
+      enable-auto-commit: true
+      fetch-min-size: 1024
+      fetch-max-wait: 500ms
+    listener:
+      ack-mode: batch
+      concurrency: 3
+
+# 应用配置
+user:
+  behavior:
+    topic:
+      main: perf-user-behavior-events
+      pageview: perf-user-behavior-pageview
+      click: perf-user-behavior-click
+      search: perf-user-behavior-search
+      purchase: perf-user-behavior-purchase
+      default: perf-user-behavior-default
+
+# 批处理配置 - 增大批次以提高性能
+app:
+  batch:
+    size: 100
+
+# 查询服务配置
+query:
+  cache:
+    ttl: 1800  # 30分钟缓存
+    enable: true
+
+# 日志配置 - 减少日志输出以提高性能
+logging:
+  level:
+    com.microservice.user_behaviour: WARN
+    org.springframework.kafka: ERROR
+    org.springframework.data.redis: ERROR
+    org.hibernate.SQL: ERROR
+    org.springframework.web: WARN
+  pattern:
+    console: "%d{HH:mm:ss} %-5level %logger{36} - %msg%n"
+
+# 管理端点配置
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+# 性能优化配置
+server:
+  tomcat:
+    threads:
+      max: 200
+      min-spare: 10
+    max-connections: 8192
+    accept-count: 100
+    connection-timeout: 20000 

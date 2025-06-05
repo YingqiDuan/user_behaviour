@@ -12,6 +12,13 @@ services:
     volumes:
       - zookeeper_data:/var/lib/zookeeper/data
       - zookeeper_log:/var/lib/zookeeper/log
+    networks:
+      - user-behavior-network
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   # Kafka Service
   kafka:
@@ -19,7 +26,8 @@ services:
     container_name: kafka
     restart: always
     depends_on:
-      - zookeeper
+      zookeeper:
+        condition: service_healthy
     ports:
       - "9092:9092"
       - "29092:29092"
@@ -30,8 +38,17 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_NUM_PARTITIONS: 3
     volumes:
       - kafka_data:/var/lib/kafka/data
+    networks:
+      - user-behavior-network
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server=localhost:9092"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
   # MySQL Service
   mysql:
@@ -47,7 +64,15 @@ services:
       MYSQL_PASSWORD: password
     volumes:
       - mysql_data:/var/lib/mysql
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     command: --default-authentication-plugin=mysql_native_password
+    networks:
+      - user-behavior-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "user", "-ppassword"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   # Redis Service
   redis:
@@ -59,6 +84,140 @@ services:
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes
+    networks:
+      - user-behavior-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  # Eureka Server
+  eureka-server:
+    image: user-behavior/eureka-server:0.0.1-SNAPSHOT
+    container_name: eureka-server
+    restart: always
+    ports:
+      - "8761:8761"
+    environment:
+      SPRING_PROFILES_ACTIVE: eureka
+      SERVER_PORT: 8761
+      EUREKA_INSTANCE_HOSTNAME: eureka-server
+      EUREKA_CLIENT_REGISTER_WITH_EUREKA: false
+      EUREKA_CLIENT_FETCH_REGISTRY: false
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka/
+    networks:
+      - user-behavior-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=3", "--spider", "http://localhost:8761/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Data Collection Service (Producer)
+  data-collector:
+    image: user-behavior/data-collector:0.0.1-SNAPSHOT
+    container_name: data-collector
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: producer
+      SERVER_PORT: 8080
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      EUREKA_INSTANCE_PREFER_IP_ADDRESS: true
+      EUREKA_INSTANCE_IP_ADDRESS: data-collector
+    depends_on:
+      kafka:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - user-behavior-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=3", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Event Processing Service (Consumer)
+  event-processor:
+    image: user-behavior/event-processor:0.0.1-SNAPSHOT
+    container_name: event-processor
+    restart: always
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_PROFILES_ACTIVE: consumer
+      SERVER_PORT: 8081
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/userdb
+      SPRING_DATASOURCE_USERNAME: user
+      SPRING_DATASOURCE_PASSWORD: password
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      EUREKA_INSTANCE_PREFER_IP_ADDRESS: true
+      EUREKA_INSTANCE_IP_ADDRESS: event-processor
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - user-behavior-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=3", "--spider", "http://localhost:8081/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Query Service
+  query-service:
+    image: user-behavior/query-service:0.0.1-SNAPSHOT
+    container_name: query-service
+    restart: always
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_PROFILES_ACTIVE: query
+      SERVER_PORT: 8082
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/userdb
+      SPRING_DATASOURCE_USERNAME: user
+      SPRING_DATASOURCE_PASSWORD: password
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      EUREKA_INSTANCE_PREFER_IP_ADDRESS: true
+      EUREKA_INSTANCE_IP_ADDRESS: query-service
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - user-behavior-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=3", "--spider", "http://localhost:8082/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+networks:
+  user-behavior-network:
+    driver: bridge
+    name: user-behavior-network
 
 volumes:
   zookeeper_data:

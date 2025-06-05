@@ -312,6 +312,39 @@
 					</execution>
 				</executions>
 			</plugin>
+			
+			<!-- Jib plugin for containerization -->
+			<plugin>
+				<groupId>com.google.cloud.tools</groupId>
+				<artifactId>jib-maven-plugin</artifactId>
+				<version>3.4.0</version>
+				<configuration>
+					<from>
+						<image>eclipse-temurin:17-jre-alpine</image>
+					</from>
+					<to>
+						<image>user-behavior/${project.artifactId}:${project.version}</image>
+					</to>
+					<container>
+						<mainClass>${start-class}</mainClass>
+						<jvmFlags>
+							<jvmFlag>-Xms512m</jvmFlag>
+							<jvmFlag>-Xmx1024m</jvmFlag>
+							<jvmFlag>-XX:+UseG1GC</jvmFlag>
+							<jvmFlag>-XX:+UseContainerSupport</jvmFlag>
+							<jvmFlag>-XX:MaxRAMPercentage=75.0</jvmFlag>
+						</jvmFlags>
+						<ports>
+							<port>8080</port>
+						</ports>
+						<environment>
+							<TZ>Asia/Shanghai</TZ>
+						</environment>
+						<user>1001:1001</user>
+						<workingDirectory>/app</workingDirectory>
+					</container>
+				</configuration>
+			</plugin>
 		</plugins>
 	</build>
 
@@ -325,6 +358,19 @@
 				<spring.profiles.active>default</spring.profiles.active>
 				<start-class>com.microservice.user_behaviour.UserBehaviourApplication</start-class>
 			</properties>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>com.google.cloud.tools</groupId>
+						<artifactId>jib-maven-plugin</artifactId>
+						<configuration>
+							<to>
+								<image>user-behavior/data-collector:${project.version}</image>
+							</to>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
 		</profile>
 		<profile>
 			<id>consumer</id>
@@ -332,6 +378,19 @@
 				<spring.profiles.active>consumer</spring.profiles.active>
 				<start-class>com.microservice.user_behaviour.consumer.UserBehaviorConsumerApplication</start-class>
 			</properties>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>com.google.cloud.tools</groupId>
+						<artifactId>jib-maven-plugin</artifactId>
+						<configuration>
+							<to>
+								<image>user-behavior/event-processor:${project.version}</image>
+							</to>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
 		</profile>
 		<profile>
 			<id>query</id>
@@ -339,6 +398,19 @@
 				<spring.profiles.active>query</spring.profiles.active>
 				<start-class>com.microservice.user_behaviour.query.UserBehaviorQueryApplication</start-class>
 			</properties>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>com.google.cloud.tools</groupId>
+						<artifactId>jib-maven-plugin</artifactId>
+						<configuration>
+							<to>
+								<image>user-behavior/query-service:${project.version}</image>
+							</to>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
 		</profile>
 		<profile>
 			<id>eureka</id>
@@ -346,6 +418,19 @@
 				<spring.profiles.active>eureka</spring.profiles.active>
 				<start-class>com.microservice.user_behaviour.registry.EurekaServerApplication</start-class>
 			</properties>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>com.google.cloud.tools</groupId>
+						<artifactId>jib-maven-plugin</artifactId>
+						<configuration>
+							<to>
+								<image>user-behavior/eureka-server:${project.version}</image>
+							</to>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
 		</profile>
 	</profiles>
 
